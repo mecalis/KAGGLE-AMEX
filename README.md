@@ -186,3 +186,147 @@ def drop_rows_higher_than_1_1(df, col):
     df = df[df[col] < 1.1]
 ```
 
+6. Train with LGBM
+```
+features = [col for col in train_data.columns if col not in ['customer_ID','S_2','S_2_max', CFG.target]]
+params = {
+    'objective': 'binary',
+    'metric': "binary_logloss",
+    'boosting': 'dart',
+    'seed': CFG.seed,
+    'num_leaves': 100,
+    'learning_rate': 0.005,
+    'feature_fraction': 0.20,
+    'bagging_freq': 10,
+    'bagging_fraction': 0.50,
+    'n_jobs': -1,
+    'lambda_l2': 2,
+    'min_data_in_leaf': 40
+    }
+
+# Create a numpy array to store out of folds predictions
+oof_predictions = np.zeros(len(train_data))
+kfold = StratifiedKFold(n_splits = CFG.n_folds, shuffle = True, random_state = CFG.seed)
+for fold, (trn_ind, val_ind) in enumerate(kfold.split(train_data, train_data[CFG.target])):
+    print(' ')
+    print('-'*50)
+    print(f'Training fold {fold} with {len(features)} features...')
+    x_train, x_val = train_data[features].iloc[trn_ind], train_data[features].iloc[val_ind]
+    y_train, y_val = train_data[CFG.target].iloc[trn_ind], train_data[CFG.target].iloc[val_ind]
+    lgb_train = lgb.Dataset(x_train, y_train, categorical_feature = cat_features)
+    lgb_valid = lgb.Dataset(x_val, y_val, categorical_feature = cat_features)
+    model = lgb.train(
+        params = params,
+        train_set = lgb_train,
+        num_boost_round = 200,
+        valid_sets = [lgb_train, lgb_valid],
+        early_stopping_rounds = 100,
+        verbose_eval = 100,
+        feval = lgb_amex_metric
+        )
+    # Save best model
+    joblib.dump(model, f'lgbm_fold{fold}_seed{CFG.seed}.pkl')
+    # Predict validation
+    val_pred = model.predict(x_val)
+    # Add to out of folds array
+    oof_predictions[val_ind] = val_pred
+    # Predict the test set
+    # test_pred = model.predict(test_data[features])
+    # test_predictions += test_pred / CFG.n_folds
+    # Compute fold metric
+    score = amex_metric(y_val, val_pred)
+    print(f'Our fold {fold} CV score is {score}')
+    del x_train, x_val, y_train, y_val, lgb_train, lgb_valid
+
+# Compute out of folds metric
+score = amex_metric(train_data[CFG.target], oof_predictions)
+print(f'Our out of folds CV score is {score}')
+# Create a dataframe to store out of folds predictions
+oof_df = pd.DataFrame({'customer_ID': train_data['customer_ID'], 
+                       'target': train_data[CFG.target], 
+                       'prediction': oof_predictions})
+oof_df.to_csv(f'oof_lgbm_baseline_{CFG.n_folds}fold_seed{CFG.seed}.csv', index = False)
+# Create a dataframe to store test prediction
+# test_df = pd.DataFrame({'customer_ID': test_data['customer_ID'], 
+#                         'prediction': test_predictions})
+# test_df.to_csv(f'test_lgbm_baseline_{CFG.n_folds}fold_seed{CFG.seed}.csv', index = False)
+```
+
+7. Train with Catboost
+```
+features = [col for col in train_data.columns if col not in ['customer_ID','S_2','S_2_max', CFG.target]]
+params = {
+    'objective': 'binary',
+    'metric': "binary_logloss",
+    'boosting': 'dart',
+    'seed': CFG.seed,
+    'num_leaves': 100,
+    'learning_rate': 0.01,
+    'feature_fraction': 0.20,
+    'bagging_freq': 10,
+    'bagging_fraction': 0.50,
+    'n_jobs': -1,
+    'lambda_l2': 2,
+    'min_data_in_leaf': 40
+    }
+
+N_FOLDS = 2
+skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=22)
+y_oof = np.zeros(train_data.shape[0])
+# y_test = np.zeros(test.shape[0])
+ix = 0
+
+# train_x = train_data[features]
+# train_y = train_data[CFG.target]
+train_x = train_data[features]
+train_y = train_data[CFG.target]
+for train_ind, val_ind in skf.split(train_x, train_y):
+    print(f"******* Fold {ix} ******* ")
+    tr_x, val_x = (
+        # train_x.iloc[train_ind].reset_index(drop=True),
+        # train_x.iloc[val_ind].reset_index(drop=True),
+        train_x.iloc[train_ind],
+        train_x.iloc[val_ind],
+    )
+    tr_y, val_y = (
+        # train_y.iloc[train_ind].reset_index(drop=True),
+        # train_y.iloc[val_ind].reset_index(drop=True),
+        train_y.iloc[train_ind],
+        train_y.iloc[val_ind],
+    )
+
+    clf = CatBoostClassifier(iterations=10, random_state=50)
+    clf.fit(tr_x, tr_y, eval_set=[(val_x, val_y)], cat_features=cat_features,  verbose=50)
+    preds = clf.predict_proba(val_x)[:, 1]
+    y_oof[val_ind] = y_oof[val_ind] + preds
+
+    # preds_test = clf.predict_proba(test)[:, 1]
+    # y_test = y_test + preds_test / N_FOLDS
+    ix = ix + 1
+y_pred = train_y.copy(deep=True)
+# y_pred = y_pred.rename({"target": "prediction"})
+# y_pred.columns = ["prediction"]
+# y_pred["prediction"] = y_oof
+val_score = amex_metric(train_y, y_oof)
+print(f"Amex metric: {val_score}")
+```
+
+9. Training results
+
+```
+# LGBM minden nélkül: 0.6683 - amex1.py
+# LGBM cat col label encoder + s_2 kezelése : 0.752 - amex1.py
+# LGBM cat col label encoder + s_2 kezelése : 0.752 - amex2.py (i=200, lr = 0.005)
+# CAT BOOST cat col label encoder + s_2 kezelése : 0.7806 - amex2.py
+# CAT BOOST cat col label encoder + s_2 kezelése : 0.7817 - amex2.py (i=400)
+# CAT BOOST cat col label encoder + s_2 kezelése + round : 0.7826 - amex2.py (i=400)
+# LGBM cat col label encoder + s_2 kezelése + round + bonyi kicsit : 0.752 - amex2.py (i=200, lr = 0.005)
+# CAT BOOST cat col label encoder + s_2 kezelése + round + bonyi kicsit: 0.7838 - amex2.py (i=600)
+# CAT BOOST  + s_2 kezelése + round + bonyi kész: 0.7827 - amex3.py (i=600)
+# CAT BOOST  + s_2 kezelése + round + bonyi kész + dropna: 0.7482 - amex3.py (i=100)
+# CAT BOOST  + s_2 kezelése + round + bonyi kész + fill na median and extra: 0.77834 - amex3.py (i=100)
+# CAT BOOST  + s_2 kezelése + round + bonyi kész + fill na median and extra: 0.78311 - amex3.py (i=1000)
+# CAT BOOST  + s_2 kezelése + round + bonyi kész + dropcol nélkül + fill na median and extra: 0.7791 - amex3.py (i=100)
+# CAT BOOST  + s_2 kezelése + round + bonyi kész + összes dropcol nélkül + fill na median and extra col: 0.7840 - amex3.py (i=100)
+# CAT BOOST  + s_2 kezelése + round + bonyi kész + összes dropcol nélkül + fill na median and extra col: 0.7870 - amex3.py (i=1000)
+```
