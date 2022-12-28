@@ -15,7 +15,7 @@ The training set contains 1M+ rows and 200+ anonymized columns.
 
 ## My solution
 1. Basic preprocessing and aggregation
-~ 12 categorical cols were officially predefined.
+~ 12 categorical cols were officially predefined. Here I lost the chance to enter the top5% because of lack of computer memory (lag features)
 ```
 train_num_agg = train_data.groupby("customer_ID")[num_features].agg(['first', 'last'])
 train_num_agg.columns = ['_'.join(x) for x in train_num_agg.columns]
@@ -34,6 +34,7 @@ for cat_col in cat_features:
     test_data[cat_col] = encoder.transform(test_data[cat_col])
 ```
 2. Missing EDA
+
 There are couple completly useless or highly correlated columns.
 ```
 background_color = 'white'
@@ -115,4 +116,73 @@ plt.show()
 
 <img src="images/Distribution of Payment Variables.png" width="800">
 
-5. 
+5. Feature engineering: binning
+
+I realised that there are binned columns, for example [0,1,3,4,5...] or [0.1, 0.2, 0.3....] but there are hidden because of the random noise. These part of the script is completelly my own solution (perhaps its effectiveness is questionable, there was no time to test is thoroughly) 
+```
+#%% FEATURE engineering DEF
+
+bin_to_step_1 = [-0.5]
+step = 1
+for i in range(1,52,1):
+    bin_to_step_1.append(bin_to_step_1[-1]+step)
+    
+bin_to_step_05 = [-0.25]
+step = 0.5
+for i in range(1,100,1):
+    bin_to_step_05.append(bin_to_step_05[-1]+step)
+
+bin_to_step_033 = [-0.33/2]
+step = 0.33
+for i in range(1,150,1):
+    bin_to_step_033.append(bin_to_step_033[-1]+step)
+    
+bin_to_step_25 = [-0.125]
+step = 0.25
+for i in range(1,200,1):
+    bin_to_step_25.append(bin_to_step_25[-1]+step)
+    
+bin_to_step_02 = [-0.1]
+step = 0.2
+for i in range(1,250,1):
+    bin_to_step_02.append(bin_to_step_02[-1]+step)
+
+bin_to_step_01 = [-0.05]
+step = 0.1
+for i in range(1,400,1):
+    bin_to_step_01.append(bin_to_step_01[-1]+step)
+    
+bin_to_step_005 = [-0.025]
+step = 0.05
+for i in range(1,800,1):
+    bin_to_step_005.append(bin_to_step_005[-1]+step)
+
+def transform_to_step1(df, col):
+    df[col] = np.digitize(df[col], bin_to_step_1)
+
+def transform_to_step05(df, col):
+    df[col] = np.digitize(df[col], bin_to_step_05)
+
+def transform_to_step033(df, col):
+    df[col] = np.digitize(df[col], bin_to_step_033)
+    
+def transform_to_step025(df, col):
+    df[col] = np.digitize(df[col], bin_to_step_25)   
+    
+def transform_to_step02(df, col):
+    df[col] = np.digitize(df[col], bin_to_step_02)
+
+def transform_to_step01(df, col):
+    df[col] = np.digitize(df[col], bin_to_step_01) 
+    
+def transform_to_step005(df, col):
+    df[col] = np.digitize(df[col], bin_to_step_005) 
+
+def S_19_special(df):
+    df["S_19"] = df["S_19"] * 100
+    df["S_19"] = np.digitize(df["S_19"], bin_to_step_1)        
+ 
+def drop_rows_higher_than_1_1(df, col):
+    df = df[df[col] < 1.1]
+```
+
