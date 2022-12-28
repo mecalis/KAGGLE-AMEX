@@ -69,7 +69,20 @@ Result:
 After the round trick I realised there are 30+ other, hidden categorical columns.
 <img src="images/missing4.png" width="800">
 
-3. EDA
+3. Round trick
+Both the competitors and I noticed that randon noise where added to the data.
+```
+features = [col for col in train_data.columns if col not in ['customer_ID','S_2','S_2_max', CFG.target]]
+features = [col for col in features if col not in cat_features]
+# round trick
+for col in features:
+    if train_data[col].dtype=='float64':
+        train_data[col] = train_data[col].astype('float32').round(decimals=2).astype('float16')
+        test_data[col] = test_data[col].astype('float32').round(decimals=2).astype('float16')
+```
+
+
+4. EDA
 
 ```
 #%% KDE EDA minden oszlopra
@@ -100,17 +113,6 @@ plt.tight_layout()
 plt.show()
 ```
 
-3. Round trick
-Both the competitors and I noticed that randon noise where added to the data.
-```
-features = [col for col in train_data.columns if col not in ['customer_ID','S_2','S_2_max', CFG.target]]
-features = [col for col in features if col not in cat_features]
-# round trick
-for col in features:
-    if train_data[col].dtype=='float64':
-        train_data[col] = train_data[col].astype('float32').round(decimals=2).astype('float16')
-        test_data[col] = test_data[col].astype('float32').round(decimals=2).astype('float16')
-```
+<img src="images/Distribution of Payment Variables.png" width="800">
 
-
-4. 
+5. 
