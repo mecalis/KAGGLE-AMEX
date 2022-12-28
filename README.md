@@ -66,7 +66,7 @@ sns.heatmap(big_dataframe[['% Missing values']],cbar = False,annot = big_datafra
 plt.show()   
 ```
 Result:
-<img src="missing4.png" width="600">
+<img src="images/missing4.png" width="600">
 
 3. EDA
 
