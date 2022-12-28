@@ -352,9 +352,8 @@ print("Variance filter után kitörölt oszlopok száma:", n_elotte-n_utana)
 11. Automatic feature selection
 The first X pc's of features selected by catboost feature importance, then the process goes further: reverse feature selection or by hand
 
-#%% Oszlop kiválasztó definíciók és Reverse selection
-
 ```
+#%% Oszlop kiválasztó definíciók és Reverse selection
 def metric_measure(variables, df_target, df):
     X = df.loc[:,variables]
     y = df_target
