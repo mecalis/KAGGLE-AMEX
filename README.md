@@ -330,3 +330,86 @@ print(f"Amex metric: {val_score}")
 # CAT BOOST  + s_2 kezelése + round + bonyi kész + összes dropcol nélkül + fill na median and extra col: 0.7840 - amex3.py (i=100)
 # CAT BOOST  + s_2 kezelése + round + bonyi kész + összes dropcol nélkül + fill na median and extra col: 0.7870 - amex3.py (i=1000)
 ```
+
+10. Variance filter to simplify the model
+
+```
+#%% Variance filter
+# Variance filter
+features_variance_filter = [col for col in train_data.columns if col not in ['customer_ID','S_2','S_2_max', 'target']]
+train_data_to_filter = train_data[features_variance_filter]
+n_elotte = train_data_to_filter.shape[1]
+# Removing all features that have variance under 0.05
+selector = VarianceThreshold(threshold = 0.05)
+selector.fit(train_data_to_filter)
+mask_clean = selector.get_support()
+train_data_filtered = train_data_to_filter[train_data_to_filter.columns[mask_clean]]
+# df_test = df_test[df_test.columns[mask_clean]]
+n_utana = train_data_filtered.shape[1]
+print("Variance filter után kitörölt oszlopok száma:", n_elotte-n_utana)
+```
+
+11. Automatic feature selection
+The first X pc's of features selected by catboost feature importance, then the process goes further: reverse feature selection or by hand
+
+#%% Oszlop kiválasztó definíciók és Reverse selection
+
+```
+def metric_measure(variables, df_target, df):
+    X = df.loc[:,variables]
+    y = df_target
+    cv = RepeatedKFold(n_splits=5, n_repeats=2, random_state=global_random)
+    model = xgboost.XGBRegressor(n_estimators=100)
+    # print("Első kezd.")
+    scores = cross_val_score(model, X, y, scoring='neg_mean_absolute_error', cv=cv, n_jobs=-1)
+    score = absolute(scores).mean()
+    # print("Első végez:", score)
+    return score
+
+def next_best(current_variables,candidate_variables, df_target, df):
+    best_score = -1
+    best_variable = None
+    candidate_variables_tqdm = tqdm(candidate_variables)
+    for v in candidate_variables_tqdm:
+        score_v = metric_measure(current_variables + [v], df_target, df)
+        if score_v >= best_score:
+            best_score = score_v
+            best_variable = v
+    print('Aktuális legjobb a',best_variable, 'pontossága:',best_score)
+    return best_variable, best_score
+
+def next_worst(current_variables,candidate_variables, df_target, df):
+    worst_score = 0
+    worst_variable = None
+    candidate_variables_tqdm = tqdm(candidate_variables)
+    for v in candidate_variables_tqdm:
+        candidate_variables = [can for can in candidate_variables if can != v]
+        variables = current_variables + candidate_variables
+        score_v = metric_measure(variables, df_target, df)
+        if worst_score == 0:
+            worst_score = score_v
+        if score_v <= worst_score:
+            worst_score = score_v
+            worst_variable = v
+    print('Aktuális legjobb a',worst_variable, 'pontossága:',worst_score)
+    return worst_variable, worst_score
+
+iternum = []
+scores = []
+for i in tqdm(range(0,max_number_variables)):
+    print('Új kör kezdődik.')
+    s = time.time()
+    worst_var, best_score = next_best(current_variables,candidate_variables,df_train_target,df_train)
+    # current_variables = current_variables + [next_var]
+    candidate_variables.remove(worst_var)
+    iternum.append(len(current_variables))
+    scores.append(best_score)
+    e = time.time()
+    print("Betanítás 1 feature = {}".format(e-s))
+    print(len(scores),'Végzett a', worst_var)
+    print("Eddigi oszlopok:", current_variables)
+print(current_variables)
+ ``` 
+
+
+
