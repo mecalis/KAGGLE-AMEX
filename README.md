@@ -71,6 +71,7 @@ After the round trick I realised there are 30+ other, hidden categorical columns
 <img src="images/missing4.png" width="800">
 
 3. Round trick
+
 Both the competitors and I noticed that randon noise where added to the data.
 ```
 features = [col for col in train_data.columns if col not in ['customer_ID','S_2','S_2_max', CFG.target]]
