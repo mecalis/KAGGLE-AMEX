@@ -66,11 +66,38 @@ sns.heatmap(big_dataframe[['% Missing values']],cbar = False,annot = big_datafra
 plt.show()   
 ```
 Result:
-<img src="images/missing4.png" width="600">
+After the round trick I realised there are 30+ other, hidden categorical columns.
+<img src="images/missing4.png" width="800">
 
 3. EDA
 
 ```
+#%% KDE EDA minden oszlopra
+
+del_cols = [c for c in train_data.columns if (c.startswith(('D','t'))) & (c not in cat_features)]
+df_del = train_data[del_cols]
+spd_cols = [c for c in train_data.columns if (c.startswith(('S','t'))) & (c not in cat_features)]
+df_spd = train_data[spd_cols]
+pay_cols = [c for c in train_data.columns if (c.startswith(('P','t'))) & (c not in cat_features)]
+df_pay = train_data[pay_cols]
+bal_cols = [c for c in train_data.columns if (c.startswith(('B','t'))) & (c not in cat_features)]
+df_bal = train_data[bal_cols]
+ris_cols = [c for c in train_data.columns if (c.startswith(('R','t'))) & (c not in cat_features)]
+df_ris = train_data[ris_cols]
+```
+```
+#%% KDE EDA minden oszlopra: Distribution of Payment Variables
+fig, axes = plt.subplots(1, 3, figsize = (12,4))
+fig.suptitle('Distribution of Payment Variables',fontsize = 35)
+for i, ax in enumerate(axes.reshape(-1)):
+    if i < len(pay_cols) - 1:
+        sns.kdeplot(x = pay_cols[i], hue ='target', data = df_pay, fill = True, ax = ax, palette =["#e63946","#8338ec"])
+        ax.tick_params()
+        ax.xaxis.get_label()
+        ax.set_ylabel('')
+        ax.set_xlabel(pay_cols[i] ,fontsize=30)
+plt.tight_layout()
+plt.show()
 ```
 
 3. Round trick
